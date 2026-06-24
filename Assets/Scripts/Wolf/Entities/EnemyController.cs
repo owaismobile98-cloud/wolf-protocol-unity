@@ -78,10 +78,16 @@ namespace Wolf.Protocol
             var col = gameObject.AddComponent<BoxCollider2D>();
             col.size = _size;
 
-            _sprite = gameObject.AddComponent<SpriteRenderer>();
-            _sprite.sprite = PlaceholderSprite.White;
-            _sprite.color = _color;
+            _sprite = gameObject.GetComponent<SpriteRenderer>();
+            if (_sprite == null)
+            {
+                _sprite = gameObject.AddComponent<SpriteRenderer>();
+                _sprite.sprite = PlaceholderSprite.White;
+                _sprite.color = _color;
+            }
             if (EnemyKind == Kind.Brute) transform.localScale = Vector3.one * 1.35f;
+            if (GetComponent<YSorter>() == null)
+                gameObject.AddComponent<YSorter>();
         }
 
         void FixedUpdate()

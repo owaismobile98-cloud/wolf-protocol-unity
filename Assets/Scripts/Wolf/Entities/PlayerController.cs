@@ -18,6 +18,7 @@ namespace Wolf.Protocol
 
         Rigidbody2D _rb;
         Camera _cam;
+        CameraRig _cameraRig;
         Vector2 _moveDir = Vector2.right;
         bool _dead;
         bool _furyActive;
@@ -50,9 +51,16 @@ namespace Wolf.Protocol
             var col = gameObject.AddComponent<BoxCollider2D>();
             col.size = new Vector2(28f, 44f);
 
-            _sprite = gameObject.AddComponent<SpriteRenderer>();
-            _sprite.sprite = PlaceholderSprite.White;
-            _sprite.color = new Color(0.3f, 0.75f, 1f);
+            _sprite = gameObject.GetComponent<SpriteRenderer>();
+            if (_sprite == null) _sprite = gameObject.AddComponent<SpriteRenderer>();
+            if (_sprite.sprite == null)
+            {
+                _sprite.sprite = PlaceholderSprite.White;
+                _sprite.color = new Color(0.3f, 0.75f, 1f);
+            }
+
+            if (GetComponent<YSorter>() == null)
+                gameObject.AddComponent<YSorter>();
 
             for (int i = 0; i < WeaponTable.All.Length; i++)
             {
@@ -61,7 +69,17 @@ namespace Wolf.Protocol
             }
         }
 
-        public void BindCamera(Camera cam) => _cam = cam;
+        public void BindCamera(Camera cam)
+        {
+            _cam = cam;
+            _cameraRig = cam != null ? cam.GetComponent<CameraRig>() : null;
+        }
+
+        public void BindCameraRig(CameraRig rig)
+        {
+            _cameraRig = rig;
+            _cam = rig != null ? rig.Camera : null;
+        }
 
         public void AddShake(float amount) => _shake = Mathf.Max(_shake, amount);
 
@@ -157,15 +175,27 @@ namespace Wolf.Protocol
 
         void UpdateCameraShake()
         {
+            if (_cameraRig != null)
+            {
+                var lead = Vector2.Lerp(Vector2.zero, AimDir * _cameraRig.AimLeadStrength, 4f * Time.deltaTime);
+                _cameraRig.SetAimLead(lead);
+                if (_shake > 0f)
+                {
+                    _cameraRig.AddShake(_shake);
+                    _shake = Mathf.MoveTowards(_shake, 0f, 40f * Time.deltaTime);
+                }
+                return;
+            }
+
             if (_cam == null) return;
-            var lead = Vector2.Lerp(Vector2.zero, AimDir * 48f, 4f * Time.deltaTime);
+            var fallbackLead = Vector2.Lerp(Vector2.zero, AimDir * 48f, 4f * Time.deltaTime);
             var jitter = Vector2.zero;
             if (_shake > 0f)
             {
                 jitter = new Vector2(Random.Range(-_shake, _shake), Random.Range(-_shake, _shake));
                 _shake = Mathf.MoveTowards(_shake, 0f, 40f * Time.deltaTime);
             }
-            _cam.transform.position = (Vector2)transform.position + lead + jitter;
+            _cam.transform.position = (Vector2)transform.position + fallbackLead + jitter;
         }
 
         void UpdateWeapon()

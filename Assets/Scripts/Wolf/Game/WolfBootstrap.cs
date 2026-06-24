@@ -9,8 +9,12 @@ namespace Wolf.Protocol
         static void EnsureGame()
         {
             if (Object.FindAnyObjectByType<GameManager>() != null) return;
+            if (Object.FindAnyObjectByType<WolfSceneSetup>() != null) return;
+            if (Object.FindAnyObjectByType<GameMode>() != null) return;
+
             var go = new GameObject("WolfGame");
             go.AddComponent<GameManager>();
+            go.AddComponent<WolfLegacyBootstrap>();
         }
     }
 }
