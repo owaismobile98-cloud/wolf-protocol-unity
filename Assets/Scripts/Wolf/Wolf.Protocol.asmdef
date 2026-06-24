@@ -1,0 +1,23 @@
+{
+    "name": "Wolf.Protocol",
+    "rootNamespace": "Wolf.Protocol",
+    "references": [
+        "Unity.InputSystem",
+        "Unity.Cinemachine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.cinemachine",
+            "expression": "",
+            "define": "CINEMACHINE"
+        }
+    ],
+    "noEngineReferences": false
+}
