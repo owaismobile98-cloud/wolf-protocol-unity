@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/BeatEmUpTest.unity
+    guid: e7e7f70282bed67479fc1a0c3507f9a3
   m_configObjects: {}
