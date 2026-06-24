@@ -8,11 +8,10 @@ using UnityEditor.PackageManager.Requests;
 [InitializeOnLoad]
 public static class WolfPackageInstaller
 {
-    static readonly string[] Required = {
-        "com.unity.inputsystem",
-        "com.unity.cinemachine",
-        "com.unity.ai.assistant",
-    };
+    // DISABLED on Unity 6.5 (6000.5): inputsystem / cinemachine / ai.assistant(MCP) all fail to
+    // compile here (obsolete-GetInstanceID hard error). Auto-adding them re-breaks the build every
+    // editor load. Use legacy Input + a simple follow camera for now; re-enable these on Unity 6.0 LTS.
+    static readonly string[] Required = { };
 
     static ListRequest _list;
     static AddRequest _add;
