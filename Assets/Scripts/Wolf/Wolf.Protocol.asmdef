@@ -1,10 +1,7 @@
 {
     "name": "Wolf.Protocol",
     "rootNamespace": "Wolf.Protocol",
-    "references": [
-        "Unity.InputSystem",
-        "Unity.Cinemachine"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -17,6 +14,11 @@
             "name": "com.unity.cinemachine",
             "expression": "",
             "define": "CINEMACHINE"
+        },
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "",
+            "define": "INPUT_SYSTEM"
         }
     ],
     "noEngineReferences": false
