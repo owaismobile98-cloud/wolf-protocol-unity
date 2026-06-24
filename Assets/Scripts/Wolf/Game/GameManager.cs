@@ -231,7 +231,7 @@ namespace Wolf.Protocol
                 DrawBar(16, 54, 200, 10, new Color(0.15f, 0.12f, 0.12f), new Color(1f, 0.35f, 0.2f),
                     _player.Fury / _player.MaxFury);
                 GUI.Label(new Rect(16, 70, 400, 24), _player.WeaponText(), style);
-                if (_player.IsFury()) GUI.Label(new Rect(222, 48, 120, 20), "VENGEANCE!", style);
+                if (_player.IsFury) GUI.Label(new Rect(222, 48, 120, 20), "VENGEANCE!", style);
                 else if (_player.Fury >= _player.MaxFury) GUI.Label(new Rect(222, 48, 160, 20), "Q: VENGEANCE", style);
             }
 

@@ -287,7 +287,7 @@ namespace Wolf.Protocol
                 var e = hit.GetComponent<EnemyController>();
                 if (e == null) continue;
                 var toE = (Vector2)e.transform.position - (Vector2)transform.position;
-                if (toE.normalized.Dot(AimDir) > 0.3f)
+                if (Vector2.Dot(toE.normalized, AimDir) > 0.3f)
                 {
                     e.TakeDamage(34f * DamageMult, toE, Feel.PauseTier.Medium, Feel.StunLevel.High);
                     SimpleVfx.Spawn(transform.parent, e.transform.position, "spark", new Color(1f, 0.95f, 0.7f));
