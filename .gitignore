@@ -24,4 +24,5 @@
 *.app
 crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
-sysinfo.txt
+keys.local.cfg
+.env
