@@ -15,7 +15,7 @@ namespace Wolf.Protocol
             _motor = Player.GetComponent<ShooterMotor>();
             if (_motor == null) _motor = Player.gameObject.AddComponent<ShooterMotor>();
             if (CameraRig != null)
-                CameraRig.CurrentMode = CameraRig.Mode.TopDown;
+                CameraRig.SetMode(CameraRig.Mode.TopDown);
         }
 
         void OnGUI()

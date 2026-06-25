@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Wolf.Protocol
 {
@@ -35,6 +36,7 @@ namespace Wolf.Protocol
         float _reloadT;
         bool _fireQueued;
         SpriteRenderer _sprite;
+        Animator _anim;
 
         public bool IsDashing => _dash > 0f;
         public bool IsFury => _furyActive;
@@ -48,16 +50,21 @@ namespace Wolf.Protocol
             _rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             gameObject.layer = LayerMask.NameToLayer(WolfLayers.Player);
 
-            var col = gameObject.AddComponent<BoxCollider2D>();
-            col.size = new Vector2(28f, 44f);
+            if (GetComponent<BoxCollider2D>() == null)
+            {
+                var col = gameObject.AddComponent<BoxCollider2D>();
+                col.size = new Vector2(28f, 44f);
+            }
 
-            _sprite = gameObject.GetComponent<SpriteRenderer>();
+            _sprite = GetComponentInChildren<SpriteRenderer>();
             if (_sprite == null) _sprite = gameObject.AddComponent<SpriteRenderer>();
             if (_sprite.sprite == null)
             {
                 _sprite.sprite = PlaceholderSprite.White;
-                _sprite.color = new Color(0.3f, 0.75f, 1f);
             }
+            _sprite.color = new Color(0.3f, 0.75f, 1f);
+
+            _anim = GetComponentInChildren<Animator>();
 
             if (GetComponent<YSorter>() == null)
                 gameObject.AddComponent<YSorter>();
@@ -115,13 +122,13 @@ namespace Wolf.Protocol
             if (input.sqrMagnitude > 0.01f) _moveDir = input.normalized;
 
             _dashCd = Mathf.Max(_dashCd - Time.deltaTime, 0f);
-            if (Input.GetKey(KeyCode.LeftShift) && _dash <= 0f && _dashCd <= 0f)
+            if (Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed && _dash <= 0f && _dashCd <= 0f)
             {
                 _dash = 0.16f;
                 _dashCd = 0.6f;
             }
 
-            if (Input.GetKey(KeyCode.Q) && !_furyActive && Fury >= MaxFury)
+            if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame && !_furyActive && Fury >= MaxFury)
                 ActivateVengeance();
 
             float furySpeed = 1f;
@@ -143,9 +150,12 @@ namespace Wolf.Protocol
                 _rb.linearVelocity = input * Speed * furySpeed;
             }
 
-            var mouseWorld = _cam != null ? _cam.ScreenToWorldPoint(Input.mousePosition) : (Vector3)transform.position + Vector3.right;
-            var toMouse = (Vector2)mouseWorld - (Vector2)transform.position;
-            if (toMouse.sqrMagnitude > 1f) AimDir = toMouse.normalized;
+            if (Mouse.current != null)
+            {
+                var mouseWorld = _cam != null ? _cam.ScreenToWorldPoint(Mouse.current.position.ReadValue()) : (Vector3)transform.position + Vector3.right;
+                var toMouse = (Vector2)mouseWorld - (Vector2)transform.position;
+                if (toMouse.sqrMagnitude > 1f) AimDir = toMouse.normalized;
+            }
 
             UpdateWeapon();
             _hurt = Mathf.Max(0f, _hurt - Time.deltaTime);
@@ -156,8 +166,9 @@ namespace Wolf.Protocol
 
         Vector2 ReadMove()
         {
-            float x = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            float y = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+            if (Keyboard.current == null) return Vector2.zero;
+            float x = (Keyboard.current.dKey.isPressed ? 1f : 0f) - (Keyboard.current.aKey.isPressed ? 1f : 0f);
+            float y = (Keyboard.current.wKey.isPressed ? 1f : 0f) - (Keyboard.current.sKey.isPressed ? 1f : 0f);
             var v = new Vector2(x, y);
             return v.sqrMagnitude > 1f ? v.normalized : v;
         }
@@ -170,14 +181,22 @@ namespace Wolf.Protocol
             else if (_dead) _sprite.color = new Color(0.45f, 0.45f, 0.5f);
             else if (_dash > 0f) _sprite.color = new Color(0.75f, 1.35f, 1.35f);
             else if (_furyActive) _sprite.color = new Color(1.35f, 0.45f, 0.35f);
-            else _sprite.color = new Color(0.3f, 0.75f, 1f);
+            // We removed the hardcoded cyan override here so prefab colors (like cyan vs red) stay intact
+
+            if (_anim != null && _anim.runtimeAnimatorController != null)
+            {
+                if (_dead) _anim.Play("death");
+                else if (_melee > 0f) _anim.Play("attack"); // May not exist, unity will ignore or warn
+                else if (_rb.linearVelocity.sqrMagnitude > 0.01f) _anim.Play("run");
+                else _anim.Play("idle");
+            }
         }
 
         void UpdateCameraShake()
         {
             if (_cameraRig != null)
             {
-                var lead = Vector2.Lerp(Vector2.zero, AimDir * _cameraRig.AimLeadStrength, 4f * Time.deltaTime);
+                var lead = Vector2.Lerp(Vector2.zero, AimDir * 48f, 4f * Time.deltaTime);
                 _cameraRig.SetAimLead(lead);
                 if (_shake > 0f)
                 {
@@ -189,20 +208,22 @@ namespace Wolf.Protocol
 
             if (_cam == null) return;
             var fallbackLead = Vector2.Lerp(Vector2.zero, AimDir * 48f, 4f * Time.deltaTime);
-            var jitter = Vector2.zero;
+            var fallbackJitter = Vector2.zero;
             if (_shake > 0f)
             {
-                jitter = new Vector2(Random.Range(-_shake, _shake), Random.Range(-_shake, _shake));
+                fallbackJitter = new Vector2(Random.Range(-_shake, _shake), Random.Range(-_shake, _shake));
                 _shake = Mathf.MoveTowards(_shake, 0f, 40f * Time.deltaTime);
             }
-            _cam.transform.position = (Vector2)transform.position + fallbackLead + jitter;
+            _cam.transform.position = (Vector2)transform.position + fallbackLead + (Vector3)fallbackJitter;
         }
 
         void UpdateWeapon()
         {
+            if (Keyboard.current == null) return;
+
             for (int i = 0; i < WeaponTable.All.Length; i++)
             {
-                if (Input.GetKey(KeyCode.Alpha1 + i) && _weaponIdx != i)
+                if (Keyboard.current[UnityEngine.InputSystem.Key.Digit1 + i].wasPressedThisFrame && _weaponIdx != i)
                 {
                     _weaponIdx = i;
                     _reloadT = 0f;
@@ -216,13 +237,13 @@ namespace Wolf.Protocol
                 _reloadT -= Time.deltaTime;
                 if (_reloadT <= 0f) FinishReload();
             }
-            else if (Input.GetKey(KeyCode.R) && _mag[_weaponIdx] < WeaponTable.All[_weaponIdx].Mag && _reserve[_weaponIdx] > 0)
+            else if (Keyboard.current.rKey.wasPressedThisFrame && _mag[_weaponIdx] < WeaponTable.All[_weaponIdx].Mag && _reserve[_weaponIdx] > 0)
             {
                 StartReload();
             }
 
             var w = WeaponTable.All[_weaponIdx];
-            bool want = w.Auto ? Input.GetMouseButton(0) : _fireQueued;
+            bool want = w.Auto && Mouse.current != null ? Mouse.current.leftButton.isPressed : _fireQueued;
             _fireQueued = false;
             if (want && _fireCd <= 0f && _reloadT <= 0f)
             {
@@ -231,9 +252,38 @@ namespace Wolf.Protocol
             }
         }
 
-        void OnGUI()
+        void LateUpdate()
         {
-            if (_melee <= 0f && !_furyActive) return;
+            if (Mouse.current != null)
+            {
+                if (Mouse.current.leftButton.wasPressedThisFrame) _fireQueued = true;
+                if (Mouse.current.rightButton.wasPressedThisFrame) DoMelee();
+            }
+        }
+
+        void DoMelee()
+        {
+            _melee = 0.25f; // extended slightly for animation to play
+            AddShake(2f);
+            SfxManager.Instance?.Play("melee");
+            // Fallback if no animator
+            if (_anim == null || _anim.runtimeAnimatorController == null) OnMeleeHit(); 
+        }
+
+        // ANIMATION EVENT
+        public void OnMeleeHit()
+        {
+            foreach (var hit in Physics2D.OverlapCircleAll(transform.position, 64f, WolfLayers.EnemyMask))
+            {
+                var e = hit.GetComponent<EnemyController>();
+                if (e == null) continue;
+                var toE = (Vector2)e.transform.position - (Vector2)transform.position;
+                if (Vector2.Dot(toE.normalized, AimDir) > 0.3f)
+                {
+                    e.TakeDamage(34f * DamageMult, toE, Feel.PauseTier.Medium, Feel.StunLevel.High);
+                    SimpleVfx.Spawn(transform.parent, e.transform.position, "spark", new Color(1f, 0.95f, 0.7f));
+                }
+            }
         }
 
         void ActivateVengeance()
@@ -299,30 +349,6 @@ namespace Wolf.Protocol
             var w = WeaponTable.All[_weaponIdx];
             if (_reloadT > 0f) return $"{w.Name}  RELOADING…";
             return $"{w.Name}  {_mag[_weaponIdx]} / {_reserve[_weaponIdx]}";
-        }
-
-        void LateUpdate()
-        {
-            if (Input.GetMouseButtonDown(0)) _fireQueued = true;
-            if (Input.GetMouseButtonDown(1)) DoMelee();
-        }
-
-        void DoMelee()
-        {
-            _melee = 0.12f;
-            AddShake(2f);
-            SfxManager.Instance?.Play("melee");
-            foreach (var hit in Physics2D.OverlapCircleAll(transform.position, 64f, WolfLayers.EnemyMask))
-            {
-                var e = hit.GetComponent<EnemyController>();
-                if (e == null) continue;
-                var toE = (Vector2)e.transform.position - (Vector2)transform.position;
-                if (Vector2.Dot(toE.normalized, AimDir) > 0.3f)
-                {
-                    e.TakeDamage(34f * DamageMult, toE, Feel.PauseTier.Medium, Feel.StunLevel.High);
-                    SimpleVfx.Spawn(transform.parent, e.transform.position, "spark", new Color(1f, 0.95f, 0.7f));
-                }
-            }
         }
     }
 }

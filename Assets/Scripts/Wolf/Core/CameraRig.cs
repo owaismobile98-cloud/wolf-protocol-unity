@@ -1,8 +1,13 @@
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace Wolf.Protocol
 {
+    /// <summary>
+    /// Mode-switching camera rig backed by Cinemachine virtual cameras.
+    /// </summary>
     [RequireComponent(typeof(Camera))]
+    [DefaultExecutionOrder(1000)]
     public class CameraRig : MonoBehaviour
     {
         public enum Mode { SideScroll2_5D, TopDown, Follow, Fixed }
@@ -16,10 +21,24 @@ namespace Wolf.Protocol
         public bool LockSideScrollX = true;
         public float AimLeadStrength = 48f;
 
+        const int ActivePriority = 10;
+        const int InactivePriority = 0;
+
         Camera _cam;
-        Vector3 _velocity;
-        Vector2 _shake;
+        CinemachineBrain _brain;
+        Transform _rigRoot;
+        CinemachineCamera _vcamSide;
+        CinemachineCamera _vcamTop;
+        CinemachineCamera _vcamFollow;
+        CinemachineCamera _vcamFixed;
+        CinemachineFollow _followSide;
+        CinemachineFollow _followTop;
+        CinemachineFollow _followFollow;
+        CinemachineBasicMultiChannelPerlin _noiseSide;
+        CinemachineBasicMultiChannelPerlin _noiseTop;
+        CinemachineBasicMultiChannelPerlin _noiseFollow;
         Vector2 _aimLead;
+        float _shake;
 
         public Camera Camera => _cam;
 
@@ -31,80 +50,142 @@ namespace Wolf.Protocol
             _cam.backgroundColor = new Color(0.08f, 0.09f, 0.11f);
             if (string.IsNullOrEmpty(gameObject.tag) || gameObject.tag == "Untagged")
                 gameObject.tag = "MainCamera";
+
+            _brain = GetComponent<CinemachineBrain>() ?? gameObject.AddComponent<CinemachineBrain>();
+            BuildVirtualCameras();
+            ApplyMode();
+        }
+
+        void BuildVirtualCameras()
+        {
+            _rigRoot = new GameObject("CM_Rig").transform;
+            _rigRoot.SetParent(transform);
+
+            _vcamSide = CreateFollowVcam("CM_SideScroll2_5D", out _followSide, out _noiseSide);
+            _vcamTop = CreateFollowVcam("CM_TopDown", out _followTop, out _noiseTop);
+            _vcamFollow = CreateFollowVcam("CM_Follow", out _followFollow, out _noiseFollow);
+
+            var fixedGo = new GameObject("CM_Fixed");
+            fixedGo.transform.SetParent(_rigRoot);
+            _vcamFixed = fixedGo.AddComponent<CinemachineCamera>();
+            ConfigureLens(_vcamFixed);
+            _vcamFixed.transform.position = BaseOffset;
+        }
+
+        CinemachineCamera CreateFollowVcam(
+            string name,
+            out CinemachineFollow follow,
+            out CinemachineBasicMultiChannelPerlin noise)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(_rigRoot);
+            var vcam = go.AddComponent<CinemachineCamera>();
+            ConfigureLens(vcam);
+            follow = go.AddComponent<CinemachineFollow>();
+            follow.PositionDamping = Vector3.one * Mathf.Max(SmoothTime, 0.01f);
+            follow.FollowOffset = BaseOffset;
+            noise = go.AddComponent<CinemachineBasicMultiChannelPerlin>();
+            noise.AmplitudeGain = 0f;
+            return vcam;
+        }
+
+        void ConfigureLens(CinemachineCamera vcam)
+        {
+            vcam.Lens.Orthographic = true;
+            vcam.Lens.OrthographicSize = FixedOrthographicSize;
         }
 
         public void BindTarget(Transform target)
         {
             Target = target;
+            _vcamSide.Follow = target;
+            _vcamTop.Follow = target;
+            _vcamFollow.Follow = target;
+            ApplyFollowOffsets();
             if (CurrentMode == Mode.Fixed && target != null)
-                transform.position = target.position + BaseOffset;
+                _vcamFixed.transform.position = target.position + BaseOffset;
         }
 
-        public void AddShake(float amount)
+        public void SetMode(Mode mode)
         {
-            _shake.x = Mathf.Max(_shake.x, amount);
-            _shake.y = Mathf.Max(_shake.y, amount);
+            CurrentMode = mode;
+            ApplyMode();
         }
+
+        public void AddShake(float amount) => _shake = Mathf.Max(_shake, amount);
 
         public void SetAimLead(Vector2 lead)
         {
             _aimLead = lead;
+            ApplyFollowOffsets();
+        }
+
+        void ApplyMode()
+        {
+            if (_brain == null) return;
+
+            SetVcamPriority(_vcamSide, CurrentMode == Mode.SideScroll2_5D);
+            SetVcamPriority(_vcamTop, CurrentMode == Mode.TopDown);
+            SetVcamPriority(_vcamFollow, CurrentMode == Mode.Follow);
+            SetVcamPriority(_vcamFixed, CurrentMode == Mode.Fixed);
+
+            if (CurrentMode == Mode.Fixed)
+                _vcamFixed.transform.position = BaseOffset;
+
+            ApplyFollowOffsets();
+            SyncLensSizes();
+        }
+
+        static void SetVcamPriority(CinemachineCamera vcam, bool active)
+        {
+            vcam.Priority = active ? ActivePriority : InactivePriority;
+        }
+
+        void ApplyFollowOffsets()
+        {
+            if (_followTop != null)
+                _followTop.FollowOffset = BaseOffset;
+
+            var lead = Vector3.zero;
+            if (CurrentMode is Mode.SideScroll2_5D or Mode.Follow)
+                lead = (Vector3)_aimLead;
+
+            if (_followSide != null)
+                _followSide.FollowOffset = BaseOffset + lead;
+            if (_followFollow != null)
+                _followFollow.FollowOffset = BaseOffset + lead;
+        }
+
+        void SyncLensSizes()
+        {
+            _cam.orthographicSize = FixedOrthographicSize;
+            ConfigureLens(_vcamSide);
+            ConfigureLens(_vcamTop);
+            ConfigureLens(_vcamFollow);
+            ConfigureLens(_vcamFixed);
         }
 
         void LateUpdate()
         {
-            _cam.orthographicSize = FixedOrthographicSize;
+            UpdateShake();
 
-            if (Target == null && CurrentMode != Mode.Fixed)
+            if (CurrentMode == Mode.SideScroll2_5D && LockSideScrollX)
             {
-                DecayShake();
-                return;
-            }
-
-            var lead = Vector2.zero;
-            if (CurrentMode is Mode.SideScroll2_5D or Mode.Follow)
-                lead = _aimLead;
-
-            var jitter = Vector2.zero;
-            if (_shake.sqrMagnitude > 0.0001f)
-            {
-                jitter = new Vector2(
-                    Random.Range(-_shake.x, _shake.x),
-                    Random.Range(-_shake.y, _shake.y));
-                _shake = Vector2.MoveTowards(_shake, Vector2.zero, 40f * Time.deltaTime);
-            }
-
-            var desired = ComputeDesiredPosition(lead);
-            var smoothed = Vector3.SmoothDamp(transform.position, desired + (Vector3)jitter, ref _velocity, SmoothTime);
-            transform.position = smoothed;
-        }
-
-        Vector3 ComputeDesiredPosition(Vector2 lead)
-        {
-            switch (CurrentMode)
-            {
-                case Mode.SideScroll2_5D:
-                {
-                    var p = Target.position + BaseOffset;
-                    if (LockSideScrollX) p.x = SideScrollLockX;
-                    p += (Vector3)lead;
-                    return p;
-                }
-                case Mode.TopDown:
-                    return Target.position + BaseOffset;
-                case Mode.Follow:
-                    return Target.position + BaseOffset + (Vector3)lead;
-                case Mode.Fixed:
-                    return BaseOffset;
-                default:
-                    return transform.position;
+                var p = transform.position;
+                p.x = SideScrollLockX;
+                transform.position = p;
             }
         }
 
-        void DecayShake()
+        void UpdateShake()
         {
-            if (_shake.sqrMagnitude <= 0.0001f) return;
-            _shake = Vector2.MoveTowards(_shake, Vector2.zero, 40f * Time.deltaTime);
+            var amp = _shake;
+            if (_shake > 0f)
+                _shake = Mathf.MoveTowards(_shake, 0f, 40f * Time.deltaTime);
+
+            if (_noiseSide != null) _noiseSide.AmplitudeGain = CurrentMode == Mode.SideScroll2_5D ? amp : 0f;
+            if (_noiseTop != null) _noiseTop.AmplitudeGain = CurrentMode == Mode.TopDown ? amp : 0f;
+            if (_noiseFollow != null) _noiseFollow.AmplitudeGain = CurrentMode == Mode.Follow ? amp : 0f;
         }
     }
 }

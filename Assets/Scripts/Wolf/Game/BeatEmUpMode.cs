@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 
 namespace Wolf.Protocol
 {
@@ -14,6 +15,8 @@ namespace Wolf.Protocol
             new[] { 3, 0 }, new[] { 4, 1 }, new[] { 3, 2 }, new[] { 5, 2 },
             new[] { 4, 3 }, new[] { 6, 3 }, new[] { 5, 4 },
         };
+
+        public GameObject EnemyPrefab; // Assign via Inspector or SceneBuilder
 
         BossController _boss;
         int _kills;
@@ -56,9 +59,24 @@ namespace Wolf.Protocol
 
             for (int i = 0; i < total; i++)
             {
-                var go = new GameObject($"Enemy_{i}");
-                go.transform.SetParent(transform);
-                var e = go.AddComponent<EnemyController>();
+                GameObject go;
+                if (EnemyPrefab != null)
+                {
+                    go = Instantiate(EnemyPrefab, transform);
+                    go.name = $"Enemy_{i}";
+                    // Ensure it's red
+                    var sr = go.GetComponentInChildren<SpriteRenderer>();
+                    if (sr != null) sr.color = new Color(0.9f, 0.25f, 0.2f);
+                }
+                else
+                {
+                    go = new GameObject($"Enemy_{i}");
+                    go.transform.SetParent(transform);
+                }
+                
+                var e = go.GetComponent<EnemyController>();
+                if (e == null) e = go.AddComponent<EnemyController>();
+                
                 var k = EnemyController.Kind.Runner;
                 if (i < brutes) k = EnemyController.Kind.Brute;
                 else if (i < brutes + shooters) k = EnemyController.Kind.Shooter;
@@ -167,7 +185,7 @@ namespace Wolf.Protocol
 
         void Update()
         {
-            if ((_state == "dead" || _state == "victory") && Input.GetKey(KeyCode.R))
+            if ((_state == "dead" || _state == "victory") && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 

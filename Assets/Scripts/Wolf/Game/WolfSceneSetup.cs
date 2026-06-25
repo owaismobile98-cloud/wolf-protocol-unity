@@ -36,7 +36,11 @@ namespace Wolf.Protocol
             });
 
             if (GameMode != null)
+            {
                 GameMode.BindPlayer(_built.Player, _built.CameraRig);
+                if (GameMode is BeatEmUpMode beatEmUp)
+                    beatEmUp.EnemyPrefab = EnemyPrefab;
+            }
         }
 
         public WolfScene.Result Built => _built;

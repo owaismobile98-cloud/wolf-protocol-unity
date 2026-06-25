@@ -16,7 +16,7 @@ namespace Wolf.Protocol
             if (_motor == null) _motor = Player.gameObject.AddComponent<PlatformerMotor>();
             if (CameraRig != null)
             {
-                CameraRig.CurrentMode = CameraRig.Mode.Follow;
+                CameraRig.SetMode(CameraRig.Mode.Follow);
                 CameraRig.LockSideScrollX = false;
             }
         }

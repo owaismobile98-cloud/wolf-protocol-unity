@@ -29,6 +29,7 @@ namespace Wolf.Protocol
         float _telegraph;
         SpriteRenderer _sprite;
         Rigidbody2D _rb;
+        Animator _anim;
 
         public void Configure(Kind k, int wave)
         {
@@ -75,16 +76,23 @@ namespace Wolf.Protocol
             gameObject.layer = LayerMask.NameToLayer(WolfLayers.Enemy);
             gameObject.tag = "Enemy";
 
-            var col = gameObject.AddComponent<BoxCollider2D>();
-            col.size = _size;
+            if (GetComponent<BoxCollider2D>() == null)
+            {
+                var col = gameObject.AddComponent<BoxCollider2D>();
+                col.size = _size;
+            }
 
-            _sprite = gameObject.GetComponent<SpriteRenderer>();
+            _sprite = gameObject.GetComponentInChildren<SpriteRenderer>();
             if (_sprite == null)
             {
                 _sprite = gameObject.AddComponent<SpriteRenderer>();
                 _sprite.sprite = PlaceholderSprite.White;
-                _sprite.color = _color;
             }
+            // Allow SceneBuilder/BeatEmUpMode to have overridden this, but default to our calculated color
+            // Actually, we apply _color inside UpdateVisuals anyway.
+            
+            _anim = GetComponentInChildren<Animator>();
+
             if (EnemyKind == Kind.Brute) transform.localScale = Vector3.one * 1.35f;
             if (GetComponent<YSorter>() == null)
                 gameObject.AddComponent<YSorter>();
@@ -118,15 +126,36 @@ namespace Wolf.Protocol
                 _touchCd = Mathf.Max(_touchCd - Time.fixedDeltaTime, 0f);
                 if (toT.magnitude < _size.x * 0.5f + 22f && _touchCd <= 0f)
                 {
-                    Target.GetComponent<PlayerController>()?.TakeDamage(ContactDamage, toT);
                     _touchCd = 0.7f;
                     _knockback = -toT.normalized * 120f;
+                    // Trigger animation, or fallback to immediate damage
+                    if (_anim != null && _anim.runtimeAnimatorController != null)
+                    {
+                        _anim.Play("attack");
+                    }
+                    else
+                    {
+                        OnMeleeHit();
+                    }
                 }
             }
             _rb.linearVelocity = chase + _knockback;
             _knockback = Vector2.MoveTowards(_knockback, Vector2.zero, 7f * Time.fixedDeltaTime);
             _flash = Mathf.Max(0f, _flash - Time.fixedDeltaTime);
             UpdateVisuals();
+        }
+
+        // ANIMATION EVENT
+        public void OnMeleeHit()
+        {
+            if (Target != null)
+            {
+                var toT = (Vector2)Target.position - (Vector2)transform.position;
+                if (toT.magnitude < _size.x * 0.5f + 32f) // generous hitbox for animation
+                {
+                    Target.GetComponent<PlayerController>()?.TakeDamage(ContactDamage, toT);
+                }
+            }
         }
 
         void ShooterUpdate()
@@ -180,6 +209,14 @@ namespace Wolf.Protocol
             if (_flash > 0f) _sprite.color = new Color(2f, 2f, 2f);
             else if (_telegraph > 0f) _sprite.color = new Color(1.6f, 0.9f, 0.3f);
             else _sprite.color = _color;
+
+            if (_anim != null && _anim.runtimeAnimatorController != null)
+            {
+                if (_dying) _anim.Play("death");
+                else if (_touchCd > 0.4f) _anim.Play("attack"); // keep attack playing briefly
+                else if (_rb.linearVelocity.sqrMagnitude > 0.01f) _anim.Play("run");
+                else _anim.Play("idle");
+            }
         }
 
         public void TakeDamage(float amount, Vector2 dir, Feel.PauseTier pauseTier = Feel.PauseTier.Light, Feel.StunLevel stunLevel = Feel.StunLevel.Normal)
