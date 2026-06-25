@@ -82,7 +82,7 @@ namespace Wolf.Protocol
             var vcam = go.AddComponent<CinemachineCamera>();
             ConfigureLens(vcam);
             follow = go.AddComponent<CinemachineFollow>();
-            follow.PositionDamping = Vector3.one * Mathf.Max(SmoothTime, 0.01f);
+            follow.TrackerSettings.PositionDamping = Vector3.one * Mathf.Max(SmoothTime, 0.01f);
             follow.FollowOffset = BaseOffset;
             noise = go.AddComponent<CinemachineBasicMultiChannelPerlin>();
             noise.AmplitudeGain = 0f;
@@ -91,8 +91,10 @@ namespace Wolf.Protocol
 
         void ConfigureLens(CinemachineCamera vcam)
         {
-            vcam.Lens.Orthographic = true;
-            vcam.Lens.OrthographicSize = FixedOrthographicSize;
+            var lens = vcam.Lens;
+            lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
+            lens.OrthographicSize = FixedOrthographicSize;
+            vcam.Lens = lens;
         }
 
         public void BindTarget(Transform target)

@@ -196,7 +196,7 @@ namespace Wolf.Protocol
         {
             if (_cameraRig != null)
             {
-                var lead = Vector2.Lerp(Vector2.zero, AimDir * 48f, 4f * Time.deltaTime);
+                var lead = Vector2.Lerp(Vector2.zero, AimDir * _cameraRig.AimLeadStrength, 4f * Time.deltaTime);
                 _cameraRig.SetAimLead(lead);
                 if (_shake > 0f)
                 {
@@ -214,7 +214,7 @@ namespace Wolf.Protocol
                 fallbackJitter = new Vector2(Random.Range(-_shake, _shake), Random.Range(-_shake, _shake));
                 _shake = Mathf.MoveTowards(_shake, 0f, 40f * Time.deltaTime);
             }
-            _cam.transform.position = (Vector2)transform.position + fallbackLead + (Vector3)fallbackJitter;
+            _cam.transform.position = (Vector3)((Vector2)transform.position + fallbackLead + fallbackJitter);
         }
 
         void UpdateWeapon()
